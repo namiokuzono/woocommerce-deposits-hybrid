@@ -53,7 +53,6 @@ class WC_Deposits_Hybrid {
      */
     public function __construct() {
         $this->init_hooks();
-        $this->includes();
     }
 
     /**
@@ -61,16 +60,13 @@ class WC_Deposits_Hybrid {
      */
     private function init_hooks() {
         // Check if WooCommerce and WooCommerce Deposits are active
-        add_action( 'plugins_loaded', array( $this, 'check_dependencies' ) );
+        add_action( 'plugins_loaded', array( $this, 'check_dependencies' ), 20 );
         
         // Initialize the plugin
         add_action( 'init', array( $this, 'init' ) );
 
         // Add HPOS compatibility
         add_action( 'before_woocommerce_init', array( $this, 'declare_hpos_compatibility' ) );
-
-        // Register settings page
-        add_action( 'init', array( $this, 'register_settings' ) );
     }
 
     /**
@@ -95,19 +91,23 @@ class WC_Deposits_Hybrid {
             add_action( 'admin_notices', array( $this, 'deposits_missing_notice' ) );
             return;
         }
+
+        // Only load plugin files if dependencies are met
+        $this->includes();
+        
+        // Initialize managers
+        $this->init_managers();
     }
 
     /**
-     * Register settings page
+     * Initialize managers
      */
-    public function register_settings() {
-        if ( class_exists( 'WC_Settings_Page' ) ) {
-            add_filter( 'woocommerce_get_settings_pages', function( $settings_pages ) {
-                if ( ! isset( $GLOBALS['wc_deposits_hybrid_settings'] ) ) {
-                    $settings_pages[] = include WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'includes/class-wc-deposits-hybrid-settings.php';
-                }
-                return $settings_pages;
-            });
+    private function init_managers() {
+        if ( class_exists( 'WC_Deposits_Hybrid_Product_Manager' ) ) {
+            new WC_Deposits_Hybrid_Product_Manager();
+        }
+        if ( class_exists( 'WC_Deposits_Hybrid_Order_Manager' ) ) {
+            new WC_Deposits_Hybrid_Order_Manager();
         }
     }
 

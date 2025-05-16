@@ -69,6 +69,9 @@ class WC_Deposits_Hybrid_Product_Manager {
         add_filter( 'woocommerce_add_cart_item_data', array( $this, 'add_cart_item_data' ), 10, 3 );
         add_filter( 'wc_deposits_enabled_for_cart_item', array( $this, 'deposits_enabled_for_cart_item' ), 10, 3 );
         add_filter( 'woocommerce_get_item_data', array( $this, 'get_item_data' ), 10, 2 );
+
+        // Add debug logging
+        $this->log_debug( 'Product Manager initialized', 'info' );
     }
 
     /**
@@ -208,6 +211,8 @@ class WC_Deposits_Hybrid_Product_Manager {
         }
 
         echo '</div>';
+
+        $this->log_debug( 'Added hybrid options to product panel', 'info' );
     }
 
     /**
