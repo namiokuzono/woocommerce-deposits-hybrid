@@ -31,6 +31,9 @@ class WC_Deposits_Hybrid_Product_Manager {
         
         // Add payment plan options
         add_filter( 'wc_deposits_payment_plan_options', array( $this, 'add_hybrid_payment_plan_options' ), 10, 2 );
+
+        // Add NRD option
+        add_filter( 'wc_deposits_deposit_selected_type', array( $this, 'handle_deposit_selection' ), 10, 2 );
     }
 
     /**
@@ -67,6 +70,15 @@ class WC_Deposits_Hybrid_Product_Manager {
             )
         );
 
+        // Non-refundable deposit option
+        woocommerce_wp_checkbox(
+            array(
+                'id'          => '_wc_deposit_hybrid_nrd',
+                'label'       => __( 'Non-Refundable Deposit', 'wc-deposits-hybrid' ),
+                'description' => __( 'Make the initial deposit non-refundable', 'wc-deposits-hybrid' ),
+            )
+        );
+
         // Payment plan options
         $payment_plans = WC_Deposits_Plans_Manager::get_plan_ids();
         if ( ! empty( $payment_plans ) ) {
@@ -98,10 +110,12 @@ class WC_Deposits_Hybrid_Product_Manager {
      */
     public function save_hybrid_options( $post_id ) {
         $initial_percent = isset( $_POST['_wc_deposit_hybrid_initial_percent'] ) ? wc_clean( wp_unslash( $_POST['_wc_deposit_hybrid_initial_percent'] ) ) : '';
+        $is_nrd = isset( $_POST['_wc_deposit_hybrid_nrd'] ) ? 'yes' : 'no';
         $allow_plans = isset( $_POST['_wc_deposit_hybrid_allow_plans'] ) ? 'yes' : 'no';
         $plans = isset( $_POST['_wc_deposit_hybrid_plans'] ) ? array_map( 'absint', (array) $_POST['_wc_deposit_hybrid_plans'] ) : array();
 
         update_post_meta( $post_id, '_wc_deposit_hybrid_initial_percent', $initial_percent );
+        update_post_meta( $post_id, '_wc_deposit_hybrid_nrd', $is_nrd );
         update_post_meta( $post_id, '_wc_deposit_hybrid_allow_plans', $allow_plans );
         update_post_meta( $post_id, '_wc_deposit_hybrid_plans', $plans );
     }
@@ -154,6 +168,27 @@ class WC_Deposits_Hybrid_Product_Manager {
 
         $all_plans = WC_Deposits_Plans_Manager::get_plan_ids();
         return array_intersect_key( $all_plans, array_flip( $available_plans ) );
+    }
+
+    /**
+     * Handle deposit selection
+     *
+     * @param string $type Selected deposit type
+     * @param int    $product_id Product ID
+     * @return string
+     */
+    public function handle_deposit_selection( $type, $product_id ) {
+        if ( 'hybrid' !== WC_Deposits_Product_Manager::get_deposit_type( $product_id ) ) {
+            return $type;
+        }
+
+        // If NRD is enabled and no payment plan is selected, use deposit type
+        $is_nrd = get_post_meta( $product_id, '_wc_deposit_hybrid_nrd', true );
+        if ( 'yes' === $is_nrd && empty( $_POST['wc_deposit_payment_plan'] ) ) {
+            return 'deposit';
+        }
+
+        return $type;
     }
 }
 

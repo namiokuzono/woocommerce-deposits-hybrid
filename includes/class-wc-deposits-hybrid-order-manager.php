@@ -17,174 +17,152 @@ class WC_Deposits_Hybrid_Order_Manager {
      * Constructor
      */
     public function __construct() {
-        // Handle hybrid payment processing
+        // Process hybrid payments
         add_action( 'woocommerce_checkout_order_processed', array( $this, 'process_hybrid_payment' ), 10, 3 );
         
         // Modify order status
-        add_filter( 'wc_deposits_order_status', array( $this, 'modify_order_status' ), 10, 2 );
+        add_filter( 'woocommerce_order_status_changed', array( $this, 'modify_order_status' ), 10, 4 );
         
-        // Add payment plan scheduling
-        add_action( 'wc_deposits_after_payment_complete', array( $this, 'schedule_remaining_payments' ), 10, 2 );
+        // Schedule remaining payments
+        add_action( 'woocommerce_payment_complete', array( $this, 'schedule_remaining_payments' ) );
+
+        // Handle NRD orders
+        add_action( 'woocommerce_order_status_changed', array( $this, 'handle_nrd_order_status' ), 10, 4 );
     }
 
     /**
      * Process hybrid payment
      *
-     * @param int   $order_id Order ID
-     * @param array $posted_data Posted data
-     * @param WC_Order $order Order object
+     * @param int    $order_id Order ID
+     * @param array  $posted_data Posted data
+     * @param object $order Order object
      */
     public function process_hybrid_payment( $order_id, $posted_data, $order ) {
         $has_hybrid = false;
-        $payment_plan_id = 0;
+        $selected_plan = null;
 
-        // Check if order contains hybrid deposit items
         foreach ( $order->get_items() as $item ) {
-            $product_id = $item->get_product_id();
-            if ( 'hybrid' === WC_Deposits_Product_Manager::get_deposit_type( $product_id ) ) {
+            $product = $item->get_product();
+            if ( ! $product ) {
+                continue;
+            }
+
+            if ( 'hybrid' === WC_Deposits_Product_Manager::get_deposit_type( $product->get_id() ) ) {
                 $has_hybrid = true;
                 if ( ! empty( $posted_data['wc_deposit_payment_plan'] ) ) {
-                    $payment_plan_id = absint( $posted_data['wc_deposit_payment_plan'] );
-                }
-                break;
-            }
-        }
-
-        if ( ! $has_hybrid ) {
-            return;
-        }
-
-        // Store payment plan ID if selected
-        if ( $payment_plan_id ) {
-            update_post_meta( $order_id, '_wc_deposit_hybrid_payment_plan', $payment_plan_id );
-        }
-    }
-
-    /**
-     * Modify order status
-     *
-     * @param string $status Order status
-     * @param WC_Order $order Order object
-     * @return string
-     */
-    public function modify_order_status( $status, $order ) {
-        $has_hybrid = false;
-        $has_payment_plan = false;
-
-        foreach ( $order->get_items() as $item ) {
-            $product_id = $item->get_product_id();
-            if ( 'hybrid' === WC_Deposits_Product_Manager::get_deposit_type( $product_id ) ) {
-                $has_hybrid = true;
-                if ( get_post_meta( $order->get_id(), '_wc_deposit_hybrid_payment_plan', true ) ) {
-                    $has_payment_plan = true;
+                    $selected_plan = $posted_data['wc_deposit_payment_plan'];
                 }
                 break;
             }
         }
 
         if ( $has_hybrid ) {
-            if ( $has_payment_plan ) {
-                return 'partial-payment';
-            } else {
-                return 'pending-deposit';
+            update_post_meta( $order_id, '_wc_deposit_hybrid_order', 'yes' );
+            if ( $selected_plan ) {
+                update_post_meta( $order_id, '_wc_deposit_hybrid_plan', $selected_plan );
             }
         }
+    }
 
-        return $status;
+    /**
+     * Modify order status
+     *
+     * @param int    $order_id Order ID
+     * @param string $old_status Old status
+     * @param string $new_status New status
+     * @param object $order Order object
+     */
+    public function modify_order_status( $order_id, $old_status, $new_status, $order ) {
+        if ( 'yes' !== get_post_meta( $order_id, '_wc_deposit_hybrid_order', true ) ) {
+            return;
+        }
+
+        // If this is a payment plan order, ensure it stays in processing
+        if ( get_post_meta( $order_id, '_wc_deposit_hybrid_plan', true ) ) {
+            if ( 'processing' !== $new_status ) {
+                $order->update_status( 'processing' );
+            }
+        }
     }
 
     /**
      * Schedule remaining payments
      *
      * @param int $order_id Order ID
-     * @param WC_Order $order Order object
      */
-    public function schedule_remaining_payments( $order_id, $order ) {
-        $payment_plan_id = get_post_meta( $order_id, '_wc_deposit_hybrid_payment_plan', true );
-        if ( ! $payment_plan_id ) {
+    public function schedule_remaining_payments( $order_id ) {
+        $order = wc_get_order( $order_id );
+        if ( ! $order || 'yes' !== get_post_meta( $order_id, '_wc_deposit_hybrid_order', true ) ) {
             return;
         }
 
-        $payment_plan = new WC_Deposits_Plan( $payment_plan_id );
-        if ( ! $payment_plan ) {
+        $plan_id = get_post_meta( $order_id, '_wc_deposit_hybrid_plan', true );
+        if ( ! $plan_id ) {
             return;
         }
 
-        // Get remaining balance
-        $remaining_balance = $order->get_total() - $order->get_total_paid();
-        if ( $remaining_balance <= 0 ) {
+        $plan = WC_Deposits_Plans_Manager::get_plan( $plan_id );
+        if ( ! $plan ) {
             return;
         }
 
-        // Schedule payments based on plan
-        $schedule = $payment_plan->get_schedule();
-        $current_timestamp = current_time( 'timestamp' ); // phpcs:ignore WordPress.DateTime.CurrentTimeTimestamp.Requested
-
-        foreach ( $schedule as $schedule_row ) {
-            // Skip first payment as it's already paid
-            if ( $schedule_row === reset( $schedule ) ) {
-                continue;
-            }
-
-            // Calculate payment amount
-            $payment_amount = ( $remaining_balance / 100 ) * $schedule_row->amount;
-            
-            // Calculate payment date
-            $payment_date = strtotime( "+{$schedule_row->interval_amount} {$schedule_row->interval_unit}", $current_timestamp );
-
-            // Create scheduled payment
-            $this->create_scheduled_payment( $order, $payment_amount, $payment_date );
+        $remaining_amount = $order->get_total() - $order->get_deposit_paid();
+        $schedule = $plan->get_schedule();
+        
+        foreach ( $schedule as $payment ) {
+            $this->create_scheduled_payment( $order, $payment['amount'], $payment['date'] );
         }
     }
 
     /**
      * Create scheduled payment
      *
-     * @param WC_Order $parent_order Parent order
-     * @param float $amount Payment amount
-     * @param int $payment_date Payment date timestamp
+     * @param object $order Parent order
+     * @param float  $amount Payment amount
+     * @param string $date Payment date
      */
-    private function create_scheduled_payment( $parent_order, $amount, $payment_date ) {
-        $order = wc_create_order();
-        
-        // Copy customer data
-        $order->set_customer_id( $parent_order->get_customer_id() );
-        $order->set_billing_email( $parent_order->get_billing_email() );
-        $order->set_billing_first_name( $parent_order->get_billing_first_name() );
-        $order->set_billing_last_name( $parent_order->get_billing_last_name() );
-        $order->set_billing_address_1( $parent_order->get_billing_address_1() );
-        $order->set_billing_address_2( $parent_order->get_billing_address_2() );
-        $order->set_billing_city( $parent_order->get_billing_city() );
-        $order->set_billing_state( $parent_order->get_billing_state() );
-        $order->set_billing_postcode( $parent_order->get_billing_postcode() );
-        $order->set_billing_country( $parent_order->get_billing_country() );
-        $order->set_billing_phone( $parent_order->get_billing_phone() );
+    private function create_scheduled_payment( $order, $amount, $date ) {
+        $payment = new WC_Order();
+        $payment->set_parent_id( $order->get_id() );
+        $payment->set_customer_id( $order->get_customer_id() );
+        $payment->set_total( $amount );
+        $payment->set_date_created( $date );
+        $payment->set_status( 'pending' );
+        $payment->save();
+    }
 
-        // Copy shipping data
-        $order->set_shipping_first_name( $parent_order->get_shipping_first_name() );
-        $order->set_shipping_last_name( $parent_order->get_shipping_last_name() );
-        $order->set_shipping_address_1( $parent_order->get_shipping_address_1() );
-        $order->set_shipping_address_2( $parent_order->get_shipping_address_2() );
-        $order->set_shipping_city( $parent_order->get_shipping_city() );
-        $order->set_shipping_state( $parent_order->get_shipping_state() );
-        $order->set_shipping_postcode( $parent_order->get_shipping_postcode() );
-        $order->set_shipping_country( $parent_order->get_shipping_country() );
+    /**
+     * Handle NRD order status
+     *
+     * @param int    $order_id Order ID
+     * @param string $old_status Old status
+     * @param string $new_status New status
+     * @param object $order Order object
+     */
+    public function handle_nrd_order_status( $order_id, $old_status, $new_status, $order ) {
+        if ( 'yes' !== get_post_meta( $order_id, '_wc_deposit_hybrid_order', true ) ) {
+            return;
+        }
 
-        // Set order data
-        $order->set_parent_id( $parent_order->get_id() );
-        $order->set_total( $amount );
-        $order->set_status( 'pending' );
-        $order->set_date_created( $payment_date );
-        $order->set_payment_method( $parent_order->get_payment_method() );
-        $order->set_payment_method_title( $parent_order->get_payment_method_title() );
+        // Check if this is an NRD order (no payment plan selected)
+        if ( ! get_post_meta( $order_id, '_wc_deposit_hybrid_plan', true ) ) {
+            // If order is being cancelled, check if deposit is non-refundable
+            if ( 'cancelled' === $new_status ) {
+                $is_nrd = false;
+                foreach ( $order->get_items() as $item ) {
+                    $product = $item->get_product();
+                    if ( $product && 'yes' === get_post_meta( $product->get_id(), '_wc_deposit_hybrid_nrd', true ) ) {
+                        $is_nrd = true;
+                        break;
+                    }
+                }
 
-        // Add order note
-        $order->add_order_note( sprintf(
-            __( 'Scheduled payment for order #%s', 'wc-deposits-hybrid' ),
-            $parent_order->get_order_number()
-        ) );
-
-        $order->save();
+                if ( $is_nrd ) {
+                    // Add a note about non-refundable deposit
+                    $order->add_order_note( __( 'Note: The initial deposit is non-refundable.', 'wc-deposits-hybrid' ) );
+                }
+            }
+        }
     }
 }
 
