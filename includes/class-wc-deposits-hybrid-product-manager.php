@@ -32,7 +32,7 @@ class WC_Deposits_Hybrid_Product_Manager {
         // Add payment plan options
         add_filter( 'wc_deposits_payment_plan_options', array( $this, 'add_hybrid_payment_plan_options' ), 10, 2 );
 
-        // Add NRD option
+        // Handle deposit selection
         add_filter( 'wc_deposits_deposit_selected_type', array( $this, 'handle_deposit_selection' ), 10, 2 );
 
         // Add JavaScript to handle payment plan display
@@ -41,6 +41,14 @@ class WC_Deposits_Hybrid_Product_Manager {
         // Enqueue frontend template for hybrid deposit options
         add_action( 'woocommerce_before_add_to_cart_button', array( $this, 'show_hybrid_deposit_options' ) );
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_frontend_assets' ) );
+
+        // Hide default WooCommerce Deposits UI
+        add_action( 'init', array( $this, 'hide_default_deposits_ui' ) );
+
+        // Handle cart item data
+        add_filter( 'woocommerce_add_cart_item_data', array( $this, 'add_cart_item_data' ), 10, 3 );
+        add_filter( 'wc_deposits_enabled_for_cart_item', array( $this, 'deposits_enabled_for_cart_item' ), 10, 3 );
+        add_filter( 'woocommerce_get_item_data', array( $this, 'get_item_data' ), 10, 2 );
     }
 
     /**
@@ -232,6 +240,13 @@ class WC_Deposits_Hybrid_Product_Manager {
     }
 
     /**
+     * Hide default WooCommerce Deposits UI
+     */
+    public function hide_default_deposits_ui() {
+        remove_action( 'woocommerce_before_add_to_cart_button', 'WC_Deposits_Product_Manager::deposit_form' );
+    }
+
+    /**
      * Handle deposit selection
      *
      * @param string $type Selected deposit type
@@ -239,188 +254,69 @@ class WC_Deposits_Hybrid_Product_Manager {
      * @return string
      */
     public function handle_deposit_selection( $type, $product_id ) {
-        if ( 'hybrid' !== WC_Deposits_Product_Manager::get_deposit_type( $product_id ) ) {
+        if ( ! isset( $_POST['wc_deposits_hybrid_option'] ) ) {
             return $type;
         }
 
-        // If NRD is enabled and no payment plan is selected, use deposit type
-        $is_nrd = get_post_meta( $product_id, '_wc_deposit_hybrid_nrd', true );
-        if ( 'yes' === $is_nrd && empty( $_POST['wc_deposit_payment_plan'] ) ) {
-            return 'deposit';
-        }
-
-        return $type;
-    }
-
-    /**
-     * Add Hybrid Deposits tab to product data tabs
-     */
-    public function add_hybrid_tab( $tabs ) {
-        $tabs['hybrid_deposits'] = array(
-            'label'    => __( 'Hybrid Deposits', 'wc-deposits-hybrid' ),
-            'target'   => 'hybrid_deposits_product_data',
-            'class'    => array('show_if_simple', 'show_if_variable'),
-            'priority' => 80,
-        );
-        return $tabs;
-    }
-
-    /**
-     * Output fields for Hybrid Deposits tab
-     */
-    public function hybrid_panel_content() {
-        global $post;
-        $initial_percent = get_post_meta( $post->ID, '_wc_deposit_hybrid_initial_percent', true );
-        $is_nrd = get_post_meta( $post->ID, '_wc_deposit_hybrid_nrd', true );
-        $allow_plans = get_post_meta( $post->ID, '_wc_deposit_hybrid_allow_plans', true );
-        $selected_plans = get_post_meta( $post->ID, '_wc_deposit_hybrid_plans', true );
-        if ( ! is_array( $selected_plans ) ) {
-            $selected_plans = array();
-        }
-        $payment_plans = class_exists( 'WC_Deposits_Plans_Manager' ) ? WC_Deposits_Plans_Manager::get_plan_ids() : array();
-        ?>
-        <div id="hybrid_deposits_product_data" class="panel woocommerce_options_panel">
-            <div class="options_group">
-                <?php
-                // Initial deposit percentage
-                woocommerce_wp_text_input( array(
-                    'id'          => '_wc_deposit_hybrid_initial_percent',
-                    'label'       => __( 'Initial Deposit (%)', 'wc-deposits-hybrid' ),
-                    'description' => __( 'Percentage of total price to be paid as initial deposit', 'wc-deposits-hybrid' ),
-                    'type'        => 'number',
-                    'custom_attributes' => array(
-                        'step' => 'any',
-                        'min'  => '0',
-                        'max'  => '100',
-                    ),
-                    'value'       => $initial_percent,
-                ) );
-
-                // Non-refundable deposit option
-                woocommerce_wp_checkbox( array(
-                    'id'          => '_wc_deposit_hybrid_nrd',
-                    'label'       => __( 'Non-Refundable Deposit', 'wc-deposits-hybrid' ),
-                    'description' => __( 'Make the initial deposit non-refundable', 'wc-deposits-hybrid' ),
-                    'value'       => $is_nrd,
-                ) );
-
-                // Allow payment plans
-                woocommerce_wp_checkbox( array(
-                    'id'          => '_wc_deposit_hybrid_allow_plans',
-                    'label'       => __( 'Allow Payment Plans', 'wc-deposits-hybrid' ),
-                    'description' => __( 'Allow customers to choose a payment plan for the remaining balance', 'wc-deposits-hybrid' ),
-                    'value'       => $allow_plans,
-                ) );
-
-                // Payment plan multi-select
-                echo '<p class="form-field show_if_allow_plans">';
-                echo '<label for="_wc_deposit_hybrid_plans">' . __( 'Available Payment Plans', 'wc-deposits-hybrid' ) . '</label>';
-                echo '<select id="_wc_deposit_hybrid_plans" name="_wc_deposit_hybrid_plans[]" multiple="multiple" style="min-width:200px;">';
-                foreach ( $payment_plans as $plan_id => $plan_name ) {
-                    $selected = in_array( $plan_id, $selected_plans ) ? 'selected' : '';
-                    echo '<option value="' . esc_attr( $plan_id ) . '" ' . $selected . '>' . esc_html( $plan_name ) . '</option>';
+        $option = sanitize_text_field( wp_unslash( $_POST['wc_deposits_hybrid_option'] ) );
+        
+        switch ( $option ) {
+            case 'full':
+                return 'full';
+            case 'nrd':
+                return 'deposit';
+            case 'plan':
+                if ( isset( $_POST['wc_deposits_hybrid_plan_id'] ) ) {
+                    return 'payment_plan';
                 }
-                echo '</select>';
-                echo '<span class="description">' . __( 'Select which payment plans are available for this product', 'wc-deposits-hybrid' ) . '</span>';
-                echo '</p>';
-                ?>
-            </div>
-        </div>
-        <?php
-    }
-
-    /**
-     * Save Hybrid Deposits fields
-     */
-    public function save_hybrid_tab_fields( $post_id ) {
-        $initial_percent = isset( $_POST['_wc_deposit_hybrid_initial_percent'] ) ? wc_clean( wp_unslash( $_POST['_wc_deposit_hybrid_initial_percent'] ) ) : '';
-        $is_nrd = isset( $_POST['_wc_deposit_hybrid_nrd'] ) ? 'yes' : 'no';
-        $allow_plans = isset( $_POST['_wc_deposit_hybrid_allow_plans'] ) ? 'yes' : 'no';
-        $plans = isset( $_POST['_wc_deposit_hybrid_plans'] ) ? array_map( 'absint', (array) $_POST['_wc_deposit_hybrid_plans'] ) : array();
-
-        update_post_meta( $post_id, '_wc_deposit_hybrid_initial_percent', $initial_percent );
-        update_post_meta( $post_id, '_wc_deposit_hybrid_nrd', $is_nrd );
-        update_post_meta( $post_id, '_wc_deposit_hybrid_allow_plans', $allow_plans );
-        update_post_meta( $post_id, '_wc_deposit_hybrid_plans', $plans );
-    }
-
-    // Add hooks for the new tab
-    public function add_hooks() {
-        add_filter( 'woocommerce_product_data_tabs', array( $this, 'add_hybrid_tab' ) );
-        add_action( 'woocommerce_product_data_panels', array( $this, 'hybrid_panel_content' ) );
-        add_action( 'woocommerce_process_product_meta', array( $this, 'save_hybrid_tab_fields' ) );
-        add_filter( 'woocommerce_add_cart_item_data', array( $this, 'add_cart_item_data' ), 10, 3 );
-        add_filter( 'woocommerce_get_item_data', array( $this, 'get_item_data' ), 10, 2 );
-        add_filter( 'wc_deposits_deposit_type', array( $this, 'filter_cart_deposit_type' ), 10, 3 );
-        add_filter( 'wc_deposits_deposit_amount', array( $this, 'filter_cart_deposit_amount' ), 10, 3 );
-        add_filter( 'woocommerce_order_item_hidden_meta', array( $this, 'filter_order_item_hidden_meta' ), 10, 2 );
-        add_filter( 'wc_deposits_is_product_deposit_enabled', array( $this, 'deposits_enabled_for_cart_item' ), 10, 3 );
-        add_action('wp', array($this, 'hide_default_deposits_ui'), 20);
-    }
-
-    /**
-     * Enqueue frontend template for hybrid deposit options
-     */
-    public function add_frontend_hooks() {
-        add_action( 'woocommerce_before_add_to_cart_button', array( $this, 'show_hybrid_deposit_options' ) );
-        add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_frontend_assets' ) );
-    }
-
-    public function enqueue_frontend_assets() {
-        if ( is_product() ) {
-            wp_enqueue_style( 'wc-deposits-hybrid-frontend', WC_DEPOSITS_HYBRID_PLUGIN_URL . 'assets/css/frontend-hybrid.css', array(), WC_DEPOSITS_HYBRID_VERSION );
-            wp_enqueue_script( 'wc-deposits-hybrid-frontend', WC_DEPOSITS_HYBRID_PLUGIN_URL . 'assets/js/frontend-hybrid.js', array('jquery'), WC_DEPOSITS_HYBRID_VERSION, true );
+                return 'deposit';
+            default:
+                return $type;
         }
     }
 
-    public function show_hybrid_deposit_options() {
-        global $product;
-        // Only show for simple/variable products with hybrid settings
-        $initial_percent = get_post_meta( $product->get_id(), '_wc_deposit_hybrid_initial_percent', true );
-        if ( ! $initial_percent ) return;
-        $allow_plans = get_post_meta( $product->get_id(), '_wc_deposit_hybrid_allow_plans', true );
-        $is_nrd = get_post_meta( $product->get_id(), '_wc_deposit_hybrid_nrd', true );
-        $selected_plans = get_post_meta( $product->get_id(), '_wc_deposit_hybrid_plans', true );
-        if ( ! is_array( $selected_plans ) ) $selected_plans = array();
-        $payment_plans = class_exists( 'WC_Deposits_Plans_Manager' ) ? WC_Deposits_Plans_Manager::get_plan_ids() : array();
-        include WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'templates/single-product/hybrid-deposit-options.php';
-    }
-
     /**
-     * Capture hybrid deposit option when adding to cart and set WC Deposits keys
-     * Dynamically enable deposits for this product in the cart session if needed.
+     * Add cart item data
+     *
+     * @param array $cart_item_data Cart item data
+     * @param int   $product_id Product ID
+     * @param int   $variation_id Variation ID
+     * @return array
      */
     public function add_cart_item_data( $cart_item_data, $product_id, $variation_id ) {
-        if ( isset( $_POST['wc_deposits_hybrid_option'] ) ) {
-            $cart_item_data['wc_deposits_hybrid_option'] = sanitize_text_field( $_POST['wc_deposits_hybrid_option'] );
-            $product = wc_get_product( $product_id );
-            $price = $product ? $product->get_price() : 0;
-            $initial_percent = get_post_meta( $product_id, '_wc_deposit_hybrid_initial_percent', true );
-            if ( in_array( $cart_item_data['wc_deposits_hybrid_option'], array('nrd', 'plan'), true ) ) {
-                // Dynamically enable deposits for this product in the cart session
-                $cart_item_data['_wc_deposit_enabled'] = 'yes';
-                $cart_item_data['_wc_deposit_type'] = 'deposit';
-            }
-            if ( 'nrd' === $cart_item_data['wc_deposits_hybrid_option'] ) {
-                if ( $initial_percent && $price ) {
-                    $cart_item_data['_wc_deposit_amount'] = ( $price * $initial_percent ) / 100;
-                }
-                // Do NOT set a payment plan for NRD
-                unset($cart_item_data['_wc_deposit_payment_plan']);
-            }
-            if ( 'plan' === $cart_item_data['wc_deposits_hybrid_option'] && isset( $_POST['wc_deposits_hybrid_plan_id'] ) ) {
-                $cart_item_data['wc_deposits_hybrid_plan_id'] = absint( $_POST['wc_deposits_hybrid_plan_id'] );
-                $cart_item_data['_wc_deposit_payment_plan'] = absint( $_POST['wc_deposits_hybrid_plan_id'] );
-            }
+        if ( ! isset( $_POST['wc_deposits_hybrid_option'] ) ) {
+            return $cart_item_data;
         }
+
+        $option = sanitize_text_field( wp_unslash( $_POST['wc_deposits_hybrid_option'] ) );
+        
+        switch ( $option ) {
+            case 'nrd':
+                $cart_item_data['_wc_deposit_type'] = 'deposit';
+                $cart_item_data['_wc_deposit_amount'] = '20';
+                break;
+            case 'plan':
+                if ( isset( $_POST['wc_deposits_hybrid_plan_id'] ) ) {
+                    $cart_item_data['_wc_deposit_type'] = 'payment_plan';
+                    $cart_item_data['_wc_deposit_amount'] = '20';
+                    $cart_item_data['_wc_deposit_payment_plan'] = absint( $_POST['wc_deposits_hybrid_plan_id'] );
+                }
+                break;
+        }
+
         return $cart_item_data;
     }
 
     /**
-     * Dynamically enable deposits for the product in the cart session if needed
+     * Enable deposits for cart item
+     *
+     * @param bool  $enabled Whether deposits are enabled
+     * @param int   $product_id Product ID
+     * @param array $cart_item Cart item data
+     * @return bool
      */
     public function deposits_enabled_for_cart_item( $enabled, $product_id, $cart_item ) {
-        if ( isset( $cart_item['_wc_deposit_enabled'] ) && $cart_item['_wc_deposit_enabled'] === 'yes' ) {
+        if ( isset( $cart_item['_wc_deposit_type'] ) ) {
             return true;
         }
         return $enabled;
@@ -456,44 +352,24 @@ class WC_Deposits_Hybrid_Product_Manager {
         return $item_data;
     }
 
-    /**
-     * Force deposit type and amount for NRD in cart
-     */
-    public function filter_cart_deposit_type( $type, $product_id, $cart_item ) {
-        if ( isset( $cart_item['wc_deposits_hybrid_option'] ) && $cart_item['wc_deposits_hybrid_option'] === 'nrd' ) {
-            return 'deposit';
+    public function enqueue_frontend_assets() {
+        if ( is_product() ) {
+            wp_enqueue_style( 'wc-deposits-hybrid-frontend', WC_DEPOSITS_HYBRID_PLUGIN_URL . 'assets/css/frontend-hybrid.css', array(), WC_DEPOSITS_HYBRID_VERSION );
+            wp_enqueue_script( 'wc-deposits-hybrid-frontend', WC_DEPOSITS_HYBRID_PLUGIN_URL . 'assets/js/frontend-hybrid.js', array('jquery'), WC_DEPOSITS_HYBRID_VERSION, true );
         }
-        return $type;
     }
 
-    public function filter_cart_deposit_amount( $amount, $product_id, $cart_item ) {
-        if ( isset( $cart_item['wc_deposits_hybrid_option'] ) && $cart_item['wc_deposits_hybrid_option'] === 'nrd' ) {
-            $initial_percent = get_post_meta( $product_id, '_wc_deposit_hybrid_initial_percent', true );
-            $product = wc_get_product( $product_id );
-            $price = $product ? $product->get_price() : 0;
-            if ( $initial_percent && $price ) {
-                return ( $price * $initial_percent ) / 100;
-            }
-        }
-        return $amount;
-    }
-
-    /**
-     * Hide internal hybrid meta from order details/emails
-     */
-    public function filter_order_item_hidden_meta( $hidden, $meta_key ) {
-        $internal = array('wc_deposits_hybrid_option', 'wc_deposits_hybrid_plan_id');
-        if ( in_array( $meta_key, $internal, true ) ) {
-            return true;
-        }
-        return $hidden;
-    }
-
-    /**
-     * Hide WooCommerce Deposits default UI on single product page
-     */
-    public function hide_default_deposits_ui() {
-        remove_action('woocommerce_single_product_summary', 'wc_deposits_product_page_deposit_options', 35);
+    public function show_hybrid_deposit_options() {
+        global $product;
+        // Only show for simple/variable products with hybrid settings
+        $initial_percent = get_post_meta( $product->get_id(), '_wc_deposit_hybrid_initial_percent', true );
+        if ( ! $initial_percent ) return;
+        $allow_plans = get_post_meta( $product->get_id(), '_wc_deposit_hybrid_allow_plans', true );
+        $is_nrd = get_post_meta( $product->get_id(), '_wc_deposit_hybrid_nrd', true );
+        $selected_plans = get_post_meta( $product->get_id(), '_wc_deposit_hybrid_plans', true );
+        if ( ! is_array( $selected_plans ) ) $selected_plans = array();
+        $payment_plans = class_exists( 'WC_Deposits_Plans_Manager' ) ? WC_Deposits_Plans_Manager::get_plan_ids() : array();
+        include WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'templates/single-product/hybrid-deposit-options.php';
     }
 }
 
