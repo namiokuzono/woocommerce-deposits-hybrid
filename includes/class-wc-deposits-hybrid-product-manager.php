@@ -351,6 +351,8 @@ class WC_Deposits_Hybrid_Product_Manager {
         add_action( 'woocommerce_process_product_meta', array( $this, 'save_hybrid_tab_fields' ) );
         add_filter( 'woocommerce_add_cart_item_data', array( $this, 'add_cart_item_data' ), 10, 3 );
         add_filter( 'woocommerce_get_item_data', array( $this, 'get_item_data' ), 10, 2 );
+        add_filter( 'wc_deposits_deposit_type', array( $this, 'filter_cart_deposit_type' ), 10, 3 );
+        add_filter( 'wc_deposits_deposit_amount', array( $this, 'filter_cart_deposit_amount' ), 10, 3 );
     }
 
     /**
@@ -422,6 +424,28 @@ class WC_Deposits_Hybrid_Product_Manager {
             $item_data[] = array( 'name' => $label, 'value' => $value );
         }
         return $item_data;
+    }
+
+    /**
+     * Force deposit type and amount for NRD in cart
+     */
+    public function filter_cart_deposit_type( $type, $product_id, $cart_item ) {
+        if ( isset( $cart_item['wc_deposits_hybrid_option'] ) && $cart_item['wc_deposits_hybrid_option'] === 'nrd' ) {
+            return 'deposit';
+        }
+        return $type;
+    }
+
+    public function filter_cart_deposit_amount( $amount, $product_id, $cart_item ) {
+        if ( isset( $cart_item['wc_deposits_hybrid_option'] ) && $cart_item['wc_deposits_hybrid_option'] === 'nrd' ) {
+            $initial_percent = get_post_meta( $product_id, '_wc_deposit_hybrid_initial_percent', true );
+            $product = wc_get_product( $product_id );
+            $price = $product ? $product->get_price() : 0;
+            if ( $initial_percent && $price ) {
+                return ( $price * $initial_percent ) / 100;
+            }
+        }
+        return $amount;
     }
 }
 
