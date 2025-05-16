@@ -186,10 +186,25 @@ class WC_Deposits_Hybrid_Product_Manager {
         $allow_plans = isset( $_POST['_wc_deposit_hybrid_allow_plans'] ) ? 'yes' : 'no';
         $plans = isset( $_POST['_wc_deposit_hybrid_plans'] ) ? array_map( 'absint', (array) $_POST['_wc_deposit_hybrid_plans'] ) : array();
 
+        // Save our hybrid settings
         update_post_meta( $post_id, '_wc_deposit_hybrid_initial_percent', $initial_percent );
         update_post_meta( $post_id, '_wc_deposit_hybrid_nrd', $is_nrd );
         update_post_meta( $post_id, '_wc_deposit_hybrid_allow_plans', $allow_plans );
         update_post_meta( $post_id, '_wc_deposit_hybrid_plans', $plans );
+
+        // Enable deposits in WooCommerce Deposits
+        update_post_meta( $post_id, '_wc_deposit_enabled', 'yes' );
+        update_post_meta( $post_id, '_wc_deposit_type', 'deposit' );
+        update_post_meta( $post_id, '_wc_deposit_amount', $initial_percent );
+
+        // If payment plans are allowed, enable them
+        if ( 'yes' === $allow_plans && ! empty( $plans ) ) {
+            update_post_meta( $post_id, '_wc_deposit_payment_plans_enabled', 'yes' );
+            update_post_meta( $post_id, '_wc_deposit_payment_plans', $plans );
+        } else {
+            update_post_meta( $post_id, '_wc_deposit_payment_plans_enabled', 'no' );
+            delete_post_meta( $post_id, '_wc_deposit_payment_plans' );
+        }
     }
 
     /**
@@ -308,16 +323,21 @@ class WC_Deposits_Hybrid_Product_Manager {
         }
 
         $option = sanitize_text_field( wp_unslash( $_POST['wc_deposits_hybrid_option'] ) );
+        $product = wc_get_product( $product_id );
+        $price = $product ? $product->get_price() : 0;
+        $initial_percent = get_post_meta( $product_id, '_wc_deposit_hybrid_initial_percent', true );
         
         switch ( $option ) {
             case 'nrd':
+                $cart_item_data['_wc_deposit_enabled'] = 'yes';
                 $cart_item_data['_wc_deposit_type'] = 'deposit';
-                $cart_item_data['_wc_deposit_amount'] = '20';
+                $cart_item_data['_wc_deposit_amount'] = ( $price * $initial_percent ) / 100;
                 break;
             case 'plan':
                 if ( isset( $_POST['wc_deposits_hybrid_plan_id'] ) ) {
+                    $cart_item_data['_wc_deposit_enabled'] = 'yes';
                     $cart_item_data['_wc_deposit_type'] = 'payment_plan';
-                    $cart_item_data['_wc_deposit_amount'] = '20';
+                    $cart_item_data['_wc_deposit_amount'] = ( $price * $initial_percent ) / 100;
                     $cart_item_data['_wc_deposit_payment_plan'] = absint( $_POST['wc_deposits_hybrid_plan_id'] );
                 }
                 break;
@@ -335,7 +355,7 @@ class WC_Deposits_Hybrid_Product_Manager {
      * @return bool
      */
     public function deposits_enabled_for_cart_item( $enabled, $product_id, $cart_item ) {
-        if ( isset( $cart_item['_wc_deposit_type'] ) ) {
+        if ( isset( $cart_item['_wc_deposit_enabled'] ) && $cart_item['_wc_deposit_enabled'] === 'yes' ) {
             return true;
         }
         return $enabled;
