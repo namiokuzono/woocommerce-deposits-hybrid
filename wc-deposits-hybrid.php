@@ -101,7 +101,12 @@ class WC_Deposits_Hybrid {
         // Include core classes
         require_once WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'includes/class-wc-deposits-hybrid-product-manager.php';
         require_once WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'includes/class-wc-deposits-hybrid-order-manager.php';
-        require_once WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'includes/class-wc-deposits-hybrid-settings.php';
+        
+        // Settings class is loaded via the WooCommerce settings filter
+        add_filter( 'woocommerce_get_settings_pages', function( $settings_pages ) {
+            $settings_pages[] = include WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'includes/class-wc-deposits-hybrid-settings.php';
+            return $settings_pages;
+        });
     }
 
     /**

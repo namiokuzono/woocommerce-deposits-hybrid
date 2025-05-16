@@ -9,6 +9,11 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly
 }
 
+// Only load after WooCommerce is fully loaded
+if ( ! class_exists( 'WC_Settings_Page' ) ) {
+    return;
+}
+
 /**
  * WC_Deposits_Hybrid_Settings class
  */

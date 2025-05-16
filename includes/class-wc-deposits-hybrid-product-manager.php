@@ -333,7 +333,9 @@ class WC_Deposits_Hybrid_Product_Manager {
      * Hide default WooCommerce Deposits UI
      */
     public function hide_default_deposits_ui() {
-        remove_action( 'woocommerce_before_add_to_cart_button', 'WC_Deposits_Product_Manager::deposit_form' );
+        if ( function_exists( 'WC_Deposits_Product_Manager' ) ) {
+            remove_action( 'woocommerce_before_add_to_cart_button', array( WC_Deposits_Product_Manager::class, 'deposit_form' ) );
+        }
     }
 
     /**
