@@ -31,6 +31,8 @@ class WC_Deposits_Hybrid_Product_Manager {
      * Constructor
      */
     public function __construct() {
+        wc_deposits_hybrid_log( 'Product Manager constructor called' );
+
         // Initialize debug settings
         $this->init_debug_settings();
 
@@ -70,8 +72,7 @@ class WC_Deposits_Hybrid_Product_Manager {
         add_filter( 'wc_deposits_enabled_for_cart_item', array( $this, 'deposits_enabled_for_cart_item' ), 10, 3 );
         add_filter( 'woocommerce_get_item_data', array( $this, 'get_item_data' ), 10, 2 );
 
-        // Add debug logging
-        $this->log_debug( 'Product Manager initialized', 'info' );
+        wc_deposits_hybrid_log( 'Product Manager hooks registered' );
     }
 
     /**
@@ -112,6 +113,7 @@ class WC_Deposits_Hybrid_Product_Manager {
      * @return array
      */
     public function add_hybrid_deposit_type( $types ) {
+        wc_deposits_hybrid_log( 'Adding hybrid deposit type' );
         $types['hybrid'] = __( 'Hybrid Deposit & Plan', 'wc-deposits-hybrid' );
         return $types;
     }
@@ -123,6 +125,7 @@ class WC_Deposits_Hybrid_Product_Manager {
      * @return array
      */
     public function add_hybrid_product_data_tab( $tabs ) {
+        wc_deposits_hybrid_log( 'Adding hybrid product data tab' );
         $tabs['hybrid_deposit'] = array(
             'label'    => __( 'Hybrid Deposit', 'wc-deposits-hybrid' ),
             'target'   => 'hybrid_deposit_product_data',
