@@ -1,14 +1,16 @@
 jQuery(document).ready(function($) {
+    var $options = $('.wc-deposits-hybrid-options');
+    
     // Handle payment option selection
-    $('input[name="wc_deposits_hybrid_option"]').on('change', function() {
+    $options.on('change', 'input[type=radio][name=wc_deposits_hybrid_option]', function() {
         var selectedOption = $(this).val();
         
         // Hide all payment plan options
-        $('.payment-plan-options').hide();
+        $options.find('.wc-deposits-hybrid-plan-select').hide();
         
         // Show payment plan options if plan is selected
         if (selectedOption === 'plan') {
-            $('.payment-plan-options').show();
+            $options.find('.wc-deposits-hybrid-plan-select').show();
         }
         
         // Update cart item data
@@ -16,8 +18,8 @@ jQuery(document).ready(function($) {
     });
 
     // Handle payment plan selection
-    $('#wc_deposits_hybrid_plan_id').on('change', function() {
-        var selectedOption = $('input[name="wc_deposits_hybrid_option"]:checked').val();
+    $options.on('change', '#wc_deposits_hybrid_plan_id', function() {
+        var selectedOption = $options.find('input[name=wc_deposits_hybrid_option]:checked').val();
         if (selectedOption === 'plan') {
             updateCartItemData(selectedOption);
         }
@@ -32,7 +34,7 @@ jQuery(document).ready(function($) {
         };
 
         if (selectedOption === 'plan') {
-            data.plan_id = $('#wc_deposits_hybrid_plan_id').val();
+            data.plan_id = $options.find('#wc_deposits_hybrid_plan_id').val();
         }
 
         $.ajax({

@@ -1,74 +1,63 @@
-.wc-deposits-hybrid-options {
-    margin: 20px 0;
-    padding: 15px;
+.wc-deposits-wrapper {
+    margin: 1em 0;
+    padding: 1em;
     border: 1px solid #ddd;
     border-radius: 4px;
     background: #fff;
 }
 
-.wc-deposits-hybrid-options h4 {
-    margin: 0 0 15px;
+.wc-deposits-options h3 {
+    margin: 0 0 1em;
     padding: 0;
-    font-size: 1.2em;
+    font-size: 1.1em;
     color: #333;
 }
 
-.payment-option {
-    margin: 10px 0;
-    padding: 15px;
+.wc-deposits-option {
+    margin: 0.5em 0;
+    padding: 0.5em;
     border: 1px solid #eee;
-    border-radius: 4px;
+    border-radius: 3px;
     background: #f9f9f9;
     transition: all 0.3s ease;
 }
 
-.payment-option:hover {
+.wc-deposits-option:hover {
+    background: #f8f8f8;
     border-color: #ddd;
-    background: #f5f5f5;
 }
 
-.payment-option input[type="radio"] {
-    margin-right: 10px;
-}
-
-.payment-option label {
+.wc-deposits-option-label {
     display: block;
+    margin-left: 1.5em;
     cursor: pointer;
-    margin: 0;
 }
 
-.payment-option strong {
+.wc-deposits-option-title {
     display: block;
-    font-size: 1.1em;
+    font-weight: bold;
     color: #333;
     margin-bottom: 5px;
 }
 
-.payment-option .price {
-    display: block;
-    font-size: 1.2em;
-    color: #0073aa;
-    margin: 5px 0;
-    font-weight: bold;
-}
-
-.payment-option .description {
+.wc-deposits-option-desc {
     display: block;
     color: #666;
     font-size: 0.9em;
-    margin-top: 5px;
 }
 
-.payment-plan-options {
-    margin-top: 10px;
+.wc-deposits-hybrid-plan-select {
+    margin-top: 8px;
+    margin-left: 25px;
     padding: 10px;
     background: #fff;
     border: 1px solid #ddd;
     border-radius: 4px;
 }
 
-.payment-plan-options select {
+.wc-deposits-select {
     width: 100%;
+    max-width: 300px;
     padding: 8px;
     border: 1px solid #ddd;
     border-radius: 4px;
@@ -77,19 +66,19 @@
 
 /* Responsive styles */
 @media screen and (max-width: 768px) {
-    .wc-deposits-hybrid-options {
+    .wc-deposits-wrapper {
         padding: 10px;
     }
 
-    .payment-option {
+    .wc-deposits-option {
         padding: 10px;
     }
 
-    .payment-option strong {
+    .wc-deposits-option-title {
         font-size: 1em;
     }
 
-    .payment-option .price {
-        font-size: 1.1em;
+    .wc-deposits-option-desc {
+        font-size: 0.85em;
     }
 } 
