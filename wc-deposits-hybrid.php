@@ -65,6 +65,18 @@ class WC_Deposits_Hybrid {
         
         // Initialize the plugin
         add_action( 'init', array( $this, 'init' ) );
+
+        // Add HPOS compatibility
+        add_action( 'before_woocommerce_init', array( $this, 'declare_hpos_compatibility' ) );
+    }
+
+    /**
+     * Declare HPOS compatibility
+     */
+    public function declare_hpos_compatibility() {
+        if ( class_exists( '\Automattic\WooCommerce\Utilities\FeaturesUtil' ) ) {
+            \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
+        }
     }
 
     /**
