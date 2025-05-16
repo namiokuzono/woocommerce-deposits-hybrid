@@ -250,7 +250,19 @@ class WC_Deposits_Hybrid_Product_Manager {
      * Hide default WooCommerce Deposits UI
      */
     public function hide_default_deposits_ui() {
+        // Remove the main deposit form
+        remove_action( 'woocommerce_before_add_to_cart_button', array( WC_Deposits_Cart_Manager::instance(), 'deposits_form_output' ), 99 );
+        
+        // Remove any other potential deposit form displays
         remove_action( 'woocommerce_before_add_to_cart_button', 'WC_Deposits_Product_Manager::deposit_form' );
+        remove_action( 'woocommerce_before_add_to_cart_button', 'wc_deposits_product_page_deposit_options' );
+        
+        // Remove deposit display from cart/checkout
+        remove_action( 'woocommerce_cart_item_name', array( WC_Deposits_Cart_Manager::instance(), 'display_deposit_info' ), 10 );
+        remove_action( 'woocommerce_checkout_cart_item_quantity', array( WC_Deposits_Cart_Manager::instance(), 'display_deposit_info' ), 10 );
+        
+        // Remove deposit display from order items
+        remove_action( 'woocommerce_order_item_name', array( WC_Deposits_Order_Manager::instance(), 'display_deposit_info' ), 10 );
     }
 
     /**
