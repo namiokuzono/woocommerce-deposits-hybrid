@@ -40,6 +40,9 @@ class WC_Deposits_Hybrid_Product_Manager {
         // Add product options
         add_action( 'woocommerce_product_options_general_product_data', array( $this, 'add_hybrid_options' ) );
         
+        // Show hybrid options panel
+        add_filter( 'woocommerce_product_data_tabs', array( $this, 'add_hybrid_product_data_tab' ) );
+        
         // Save product options
         add_action( 'woocommerce_process_product_meta', array( $this, 'save_hybrid_options' ) );
         
@@ -108,6 +111,22 @@ class WC_Deposits_Hybrid_Product_Manager {
     public function add_hybrid_deposit_type( $types ) {
         $types['hybrid'] = __( 'Hybrid Deposit & Plan', 'wc-deposits-hybrid' );
         return $types;
+    }
+
+    /**
+     * Add hybrid product data tab
+     *
+     * @param array $tabs Product data tabs
+     * @return array
+     */
+    public function add_hybrid_product_data_tab( $tabs ) {
+        $tabs['hybrid_deposit'] = array(
+            'label'    => __( 'Hybrid Deposit', 'wc-deposits-hybrid' ),
+            'target'   => 'hybrid_deposit_product_data',
+            'class'    => array( 'show_if_hybrid' ),
+            'priority' => 21,
+        );
+        return $tabs;
     }
 
     /**
@@ -204,7 +223,18 @@ class WC_Deposits_Hybrid_Product_Manager {
                     $('.show_if_allow_plans').toggle(allowPlans);
                 }
 
+                // Show/hide hybrid options based on deposit type
+                function toggleHybridOptions() {
+                    var depositType = $('#_wc_deposit_type').val();
+                    var isHybrid = depositType === 'hybrid';
+                    $('.show_if_hybrid').toggle(isHybrid);
+                    if (isHybrid) {
+                        togglePaymentPlanOptions();
+                    }
+                }
+
                 // Initial state
+                toggleHybridOptions();
                 togglePaymentPlanOptions();
 
                 // Handle checkbox change
@@ -214,11 +244,13 @@ class WC_Deposits_Hybrid_Product_Manager {
 
                 // Handle deposit type change
                 $('#_wc_deposit_type').on('change', function() {
-                    var isHybrid = $(this).val() === 'hybrid';
-                    $('.show_if_hybrid').toggle(isHybrid);
-                    if (isHybrid) {
-                        togglePaymentPlanOptions();
-                    }
+                    toggleHybridOptions();
+                });
+
+                // Show hybrid tab when hybrid type is selected
+                $('a[href="#hybrid_deposit_product_data"]').on('click', function(e) {
+                    e.preventDefault();
+                    $('.product_data_tabs a[href="#hybrid_deposit_product_data"]').trigger('click');
                 });
             });
         </script>
