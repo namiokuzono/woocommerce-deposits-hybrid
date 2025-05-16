@@ -257,4 +257,19 @@ function WC_Deposits_Hybrid() {
 add_action( 'plugins_loaded', function() {
     wc_deposits_hybrid_log( 'Plugin loaded, initializing main instance' );
     WC_Deposits_Hybrid();
-}, 30 ); 
+}, 30 );
+
+// Add activation hook
+register_activation_hook( __FILE__, function() {
+    wc_deposits_hybrid_log( 'Plugin activated' );
+    // Create debug log file
+    $log_file = WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'debug.log';
+    if ( ! file_exists( $log_file ) ) {
+        touch( $log_file );
+    }
+});
+
+// Add deactivation hook
+register_deactivation_hook( __FILE__, function() {
+    wc_deposits_hybrid_log( 'Plugin deactivated' );
+}); 

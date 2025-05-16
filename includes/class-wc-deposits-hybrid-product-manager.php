@@ -83,7 +83,7 @@ class WC_Deposits_Hybrid_Product_Manager {
      * Initialize debug settings
      */
     private function init_debug_settings() {
-        $this->debug_mode = get_option( 'wc_deposits_hybrid_debug_mode', 'no' ) === 'yes';
+        $this->debug_mode = true; // Force debug mode on
         $this->debug_log_file = WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'debug.log';
         
         if ( $this->debug_mode ) {
