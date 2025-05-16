@@ -354,6 +354,7 @@ class WC_Deposits_Hybrid_Product_Manager {
         add_filter( 'wc_deposits_deposit_type', array( $this, 'filter_cart_deposit_type' ), 10, 3 );
         add_filter( 'wc_deposits_deposit_amount', array( $this, 'filter_cart_deposit_amount' ), 10, 3 );
         add_filter( 'woocommerce_order_item_hidden_meta', array( $this, 'filter_order_item_hidden_meta' ), 10, 2 );
+        add_filter( 'wc_deposits_is_product_deposit_enabled', array( $this, 'deposits_enabled_for_cart_item' ), 10, 3 );
     }
 
     /**
@@ -385,16 +386,43 @@ class WC_Deposits_Hybrid_Product_Manager {
     }
 
     /**
-     * Capture hybrid deposit option when adding to cart
+     * Capture hybrid deposit option when adding to cart and set WC Deposits keys
+     * Dynamically enable deposits for this product in the cart session if needed.
      */
     public function add_cart_item_data( $cart_item_data, $product_id, $variation_id ) {
         if ( isset( $_POST['wc_deposits_hybrid_option'] ) ) {
             $cart_item_data['wc_deposits_hybrid_option'] = sanitize_text_field( $_POST['wc_deposits_hybrid_option'] );
+            $product = wc_get_product( $product_id );
+            $price = $product ? $product->get_price() : 0;
+            $initial_percent = get_post_meta( $product_id, '_wc_deposit_hybrid_initial_percent', true );
+            if ( in_array( $cart_item_data['wc_deposits_hybrid_option'], array('nrd', 'plan'), true ) ) {
+                // Dynamically enable deposits for this product in the cart session
+                $cart_item_data['_wc_deposit_enabled'] = 'yes';
+                $cart_item_data['_wc_deposit_type'] = 'deposit';
+            }
+            if ( 'nrd' === $cart_item_data['wc_deposits_hybrid_option'] ) {
+                if ( $initial_percent && $price ) {
+                    $cart_item_data['_wc_deposit_amount'] = ( $price * $initial_percent ) / 100;
+                }
+                // Do NOT set a payment plan for NRD
+                unset($cart_item_data['_wc_deposit_payment_plan']);
+            }
             if ( 'plan' === $cart_item_data['wc_deposits_hybrid_option'] && isset( $_POST['wc_deposits_hybrid_plan_id'] ) ) {
                 $cart_item_data['wc_deposits_hybrid_plan_id'] = absint( $_POST['wc_deposits_hybrid_plan_id'] );
+                $cart_item_data['_wc_deposit_payment_plan'] = absint( $_POST['wc_deposits_hybrid_plan_id'] );
             }
         }
         return $cart_item_data;
+    }
+
+    /**
+     * Dynamically enable deposits for the product in the cart session if needed
+     */
+    public function deposits_enabled_for_cart_item( $enabled, $product_id, $cart_item ) {
+        if ( isset( $cart_item['_wc_deposit_enabled'] ) && $cart_item['_wc_deposit_enabled'] === 'yes' ) {
+            return true;
+        }
+        return $enabled;
     }
 
     /**
