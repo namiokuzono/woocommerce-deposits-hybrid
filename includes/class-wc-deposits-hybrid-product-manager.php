@@ -34,6 +34,9 @@ class WC_Deposits_Hybrid_Product_Manager {
 
         // Add NRD option
         add_filter( 'wc_deposits_deposit_selected_type', array( $this, 'handle_deposit_selection' ), 10, 2 );
+
+        // Add JavaScript to handle payment plan display
+        add_action( 'admin_footer', array( $this, 'add_payment_plan_script' ) );
     }
 
     /**
@@ -80,7 +83,11 @@ class WC_Deposits_Hybrid_Product_Manager {
         );
 
         // Payment plan options
-        $payment_plans = WC_Deposits_Plans_Manager::get_plan_ids();
+        $payment_plans = array();
+        if ( class_exists( 'WC_Deposits_Plans_Manager' ) ) {
+            $payment_plans = WC_Deposits_Plans_Manager::get_plan_ids();
+        }
+
         if ( ! empty( $payment_plans ) ) {
             woocommerce_wp_checkbox(
                 array(
@@ -90,6 +97,7 @@ class WC_Deposits_Hybrid_Product_Manager {
                 )
             );
 
+            echo '<div class="show_if_allow_plans">';
             woocommerce_wp_multi_checkbox(
                 array(
                     'id'          => '_wc_deposit_hybrid_plans',
@@ -98,9 +106,49 @@ class WC_Deposits_Hybrid_Product_Manager {
                     'options'     => $payment_plans,
                 )
             );
+            echo '</div>';
+        } else {
+            echo '<p class="form-field">';
+            echo '<label>' . __( 'Payment Plans', 'wc-deposits-hybrid' ) . '</label>';
+            echo '<span class="description">' . __( 'No payment plans available. Please create payment plans in WooCommerce Deposits settings.', 'wc-deposits-hybrid' ) . '</span>';
+            echo '</p>';
         }
 
         echo '</div>';
+    }
+
+    /**
+     * Add JavaScript to handle payment plan display
+     */
+    public function add_payment_plan_script() {
+        ?>
+        <script type="text/javascript">
+            jQuery(document).ready(function($) {
+                // Show/hide payment plan options based on checkbox
+                function togglePaymentPlanOptions() {
+                    var allowPlans = $('#_wc_deposit_hybrid_allow_plans').is(':checked');
+                    $('.show_if_allow_plans').toggle(allowPlans);
+                }
+
+                // Initial state
+                togglePaymentPlanOptions();
+
+                // Handle checkbox change
+                $('#_wc_deposit_hybrid_allow_plans').on('change', function() {
+                    togglePaymentPlanOptions();
+                });
+
+                // Handle deposit type change
+                $('#_wc_deposit_type').on('change', function() {
+                    var isHybrid = $(this).val() === 'hybrid';
+                    $('.show_if_hybrid').toggle(isHybrid);
+                    if (isHybrid) {
+                        togglePaymentPlanOptions();
+                    }
+                });
+            });
+        </script>
+        <?php
     }
 
     /**
@@ -163,6 +211,10 @@ class WC_Deposits_Hybrid_Product_Manager {
 
         $available_plans = get_post_meta( $product_id, '_wc_deposit_hybrid_plans', true );
         if ( empty( $available_plans ) ) {
+            return $options;
+        }
+
+        if ( ! class_exists( 'WC_Deposits_Plans_Manager' ) ) {
             return $options;
         }
 
