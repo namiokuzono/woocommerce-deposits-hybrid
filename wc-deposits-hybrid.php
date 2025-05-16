@@ -68,6 +68,9 @@ class WC_Deposits_Hybrid {
 
         // Add HPOS compatibility
         add_action( 'before_woocommerce_init', array( $this, 'declare_hpos_compatibility' ) );
+
+        // Register settings page
+        add_action( 'init', array( $this, 'register_settings' ) );
     }
 
     /**
@@ -95,20 +98,26 @@ class WC_Deposits_Hybrid {
     }
 
     /**
+     * Register settings page
+     */
+    public function register_settings() {
+        if ( class_exists( 'WC_Settings_Page' ) ) {
+            add_filter( 'woocommerce_get_settings_pages', function( $settings_pages ) {
+                if ( ! isset( $GLOBALS['wc_deposits_hybrid_settings'] ) ) {
+                    $settings_pages[] = include WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'includes/class-wc-deposits-hybrid-settings.php';
+                }
+                return $settings_pages;
+            });
+        }
+    }
+
+    /**
      * Include required files
      */
     private function includes() {
         // Include core classes
         require_once WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'includes/class-wc-deposits-hybrid-product-manager.php';
         require_once WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'includes/class-wc-deposits-hybrid-order-manager.php';
-        
-        // Settings class is loaded via the WooCommerce settings filter
-        add_filter( 'woocommerce_get_settings_pages', function( $settings_pages ) {
-            if ( ! isset( $GLOBALS['wc_deposits_hybrid_settings'] ) ) {
-                $settings_pages[] = include WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'includes/class-wc-deposits-hybrid-settings.php';
-            }
-            return $settings_pages;
-        });
     }
 
     /**
