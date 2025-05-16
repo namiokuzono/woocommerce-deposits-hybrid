@@ -1,11 +1,11 @@
 <?php
 /**
  * Plugin Name: WooCommerce Deposits Hybrid
- * Plugin URI: https://yourwebsite.com/wc-deposits-hybrid
+ * Plugin URI: https://github.com/namiokuzono/woocommerce-deposits-hybrid
  * Description: Extends WooCommerce Deposits to support hybrid deposit and payment plan options
  * Version: 1.0.0
- * Author: Your Name
- * Author URI: https://yourwebsite.com
+ * Author: Woo Nami
+ * Author URI: https://github.com/namiokuzono
  * Text Domain: wc-deposits-hybrid
  * Domain Path: /languages
  * Requires at least: 5.8
