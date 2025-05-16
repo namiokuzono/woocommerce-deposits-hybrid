@@ -32,6 +32,9 @@ class WC_Deposits_Hybrid_Order_Manager {
         // Set up deposit/payment plan based on hybrid selection at order creation
         add_action( 'woocommerce_checkout_create_order_line_item', array( $this, 'add_hybrid_meta_to_order_item' ), 10, 4 );
         add_action( 'woocommerce_checkout_order_processed', array( $this, 'set_hybrid_order_payment_type' ), 20, 3 );
+
+        // After order is processed, enforce NRD and Payment Plan logic
+        add_action( 'woocommerce_checkout_order_processed', array( $this, 'enforce_hybrid_payment_logic' ), 30, 1 );
     }
 
     /**
@@ -216,6 +219,36 @@ class WC_Deposits_Hybrid_Order_Manager {
         }
         if ( isset( $values['wc_deposits_hybrid_plan_id'] ) ) {
             $item->add_meta_data( 'wc_deposits_hybrid_plan_id', $values['wc_deposits_hybrid_plan_id'], true );
+        }
+    }
+
+    /**
+     * After order is processed, enforce NRD and Payment Plan logic
+     */
+    public function enforce_hybrid_payment_logic( $order_id ) {
+        $order = wc_get_order( $order_id );
+        if ( ! $order ) return;
+        $option = get_post_meta( $order_id, '_wc_deposits_hybrid_option', true );
+        $plan_id = get_post_meta( $order_id, '_wc_deposits_hybrid_plan', true );
+
+        if ( $option === 'nrd' ) {
+            // NRD: Only deposit, no payment plan
+            // Remove any scheduled payment plan meta if present
+            delete_post_meta( $order_id, '_wc_deposit_plan' );
+            // Set order status to partially paid if not already
+            if ( $order->get_status() !== 'partially-paid' ) {
+                $order->update_status( 'partially-paid' );
+            }
+        }
+
+        if ( $option === 'plan' && $plan_id ) {
+            // Payment Plan: Schedule payments using WooCommerce Deposits logic
+            // (Assumes WC_Deposits_Plans_Manager and related logic will pick up _wc_deposit_plan meta)
+            update_post_meta( $order_id, '_wc_deposit_plan', $plan_id );
+            // Optionally, ensure order status is processing or partially-paid
+            if ( ! in_array( $order->get_status(), array( 'processing', 'partially-paid' ), true ) ) {
+                $order->update_status( 'processing' );
+            }
         }
     }
 }
