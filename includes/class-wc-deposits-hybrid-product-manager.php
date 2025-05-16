@@ -216,19 +216,23 @@ class WC_Deposits_Hybrid_Product_Manager {
      * @return float
      */
     public function calculate_hybrid_deposit_amount( $amount, $product_id, $args ) {
+        error_log('[HYBRID DEBUG] calculate_hybrid_deposit_amount: product_id=' . $product_id . ', amount=' . $amount);
         if ( 'hybrid' !== WC_Deposits_Product_Manager::get_deposit_type( $product_id ) ) {
+            error_log('[HYBRID DEBUG] calculate_hybrid_deposit_amount: Not hybrid type, returning original amount');
             return $amount;
         }
 
         $initial_percent = get_post_meta( $product_id, '_wc_deposit_hybrid_initial_percent', true );
         if ( ! $initial_percent ) {
+            error_log('[HYBRID DEBUG] calculate_hybrid_deposit_amount: No initial_percent, returning original amount');
             return $amount;
         }
 
         $product = wc_get_product( $product_id );
         $price = $product->get_price();
-        
-        return ( $price * $initial_percent ) / 100;
+        $calc = ( $price * $initial_percent ) / 100;
+        error_log('[HYBRID DEBUG] calculate_hybrid_deposit_amount: Calculated=' . $calc . ' (price=' . $price . ', percent=' . $initial_percent . ')');
+        return $calc;
     }
 
     /**
@@ -289,22 +293,29 @@ class WC_Deposits_Hybrid_Product_Manager {
      */
     public function handle_deposit_selection( $type, $product_id ) {
         if ( ! isset( $_POST['wc_deposits_hybrid_option'] ) ) {
+            error_log('[HYBRID DEBUG] handle_deposit_selection: No wc_deposits_hybrid_option in POST');
             return $type;
         }
 
         $option = sanitize_text_field( wp_unslash( $_POST['wc_deposits_hybrid_option'] ) );
+        error_log('[HYBRID DEBUG] handle_deposit_selection: option=' . $option . ', product_id=' . $product_id);
         
         switch ( $option ) {
             case 'full':
+                error_log('[HYBRID DEBUG] handle_deposit_selection: Returning full');
                 return 'full';
             case 'nrd':
+                error_log('[HYBRID DEBUG] handle_deposit_selection: Returning deposit');
                 return 'deposit';
             case 'plan':
                 if ( isset( $_POST['wc_deposits_hybrid_plan_id'] ) ) {
+                    error_log('[HYBRID DEBUG] handle_deposit_selection: Returning payment_plan, plan_id=' . $_POST['wc_deposits_hybrid_plan_id']);
                     return 'payment_plan';
                 }
+                error_log('[HYBRID DEBUG] handle_deposit_selection: Plan selected but no plan_id, returning deposit');
                 return 'deposit';
             default:
+                error_log('[HYBRID DEBUG] handle_deposit_selection: Default, returning type=' . $type);
                 return $type;
         }
     }
@@ -319,6 +330,7 @@ class WC_Deposits_Hybrid_Product_Manager {
      */
     public function add_cart_item_data( $cart_item_data, $product_id, $variation_id ) {
         if ( ! isset( $_POST['wc_deposits_hybrid_option'] ) ) {
+            error_log('[HYBRID DEBUG] add_cart_item_data: No wc_deposits_hybrid_option in POST');
             return $cart_item_data;
         }
 
@@ -326,12 +338,14 @@ class WC_Deposits_Hybrid_Product_Manager {
         $product = wc_get_product( $product_id );
         $price = $product ? $product->get_price() : 0;
         $initial_percent = get_post_meta( $product_id, '_wc_deposit_hybrid_initial_percent', true );
+        error_log('[HYBRID DEBUG] add_cart_item_data: option=' . $option . ', price=' . $price . ', initial_percent=' . $initial_percent);
         
         switch ( $option ) {
             case 'nrd':
                 $cart_item_data['_wc_deposit_enabled'] = 'yes';
                 $cart_item_data['_wc_deposit_type'] = 'deposit';
                 $cart_item_data['_wc_deposit_amount'] = ( $price * $initial_percent ) / 100;
+                error_log('[HYBRID DEBUG] add_cart_item_data: Set NRD, amount=' . $cart_item_data['_wc_deposit_amount']);
                 break;
             case 'plan':
                 if ( isset( $_POST['wc_deposits_hybrid_plan_id'] ) ) {
@@ -339,8 +353,11 @@ class WC_Deposits_Hybrid_Product_Manager {
                     $cart_item_data['_wc_deposit_type'] = 'payment_plan';
                     $cart_item_data['_wc_deposit_amount'] = ( $price * $initial_percent ) / 100;
                     $cart_item_data['_wc_deposit_payment_plan'] = absint( $_POST['wc_deposits_hybrid_plan_id'] );
+                    error_log('[HYBRID DEBUG] add_cart_item_data: Set PLAN, amount=' . $cart_item_data['_wc_deposit_amount'] . ', plan_id=' . $cart_item_data['_wc_deposit_payment_plan']);
                 }
                 break;
+            default:
+                error_log('[HYBRID DEBUG] add_cart_item_data: Default case, option=' . $option);
         }
 
         return $cart_item_data;
@@ -356,8 +373,10 @@ class WC_Deposits_Hybrid_Product_Manager {
      */
     public function deposits_enabled_for_cart_item( $enabled, $product_id, $cart_item ) {
         if ( isset( $cart_item['_wc_deposit_enabled'] ) && $cart_item['_wc_deposit_enabled'] === 'yes' ) {
+            error_log('[HYBRID DEBUG] deposits_enabled_for_cart_item: Forcing enabled for product_id=' . $product_id);
             return true;
         }
+        error_log('[HYBRID DEBUG] deposits_enabled_for_cart_item: Not forcing, product_id=' . $product_id);
         return $enabled;
     }
 
