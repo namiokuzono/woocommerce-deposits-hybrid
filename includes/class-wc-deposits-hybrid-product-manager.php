@@ -355,6 +355,7 @@ class WC_Deposits_Hybrid_Product_Manager {
         add_filter( 'wc_deposits_deposit_amount', array( $this, 'filter_cart_deposit_amount' ), 10, 3 );
         add_filter( 'woocommerce_order_item_hidden_meta', array( $this, 'filter_order_item_hidden_meta' ), 10, 2 );
         add_filter( 'wc_deposits_is_product_deposit_enabled', array( $this, 'deposits_enabled_for_cart_item' ), 10, 3 );
+        add_action('wp', array($this, 'hide_default_deposits_ui'), 20);
     }
 
     /**
@@ -486,6 +487,13 @@ class WC_Deposits_Hybrid_Product_Manager {
             return true;
         }
         return $hidden;
+    }
+
+    /**
+     * Hide WooCommerce Deposits default UI on single product page
+     */
+    public function hide_default_deposits_ui() {
+        remove_action('woocommerce_single_product_summary', 'wc_deposits_product_page_deposit_options', 35);
     }
 }
 
