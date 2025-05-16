@@ -104,7 +104,9 @@ class WC_Deposits_Hybrid {
         
         // Settings class is loaded via the WooCommerce settings filter
         add_filter( 'woocommerce_get_settings_pages', function( $settings_pages ) {
-            $settings_pages[] = include WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'includes/class-wc-deposits-hybrid-settings.php';
+            if ( ! isset( $GLOBALS['wc_deposits_hybrid_settings'] ) ) {
+                $settings_pages[] = include WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'includes/class-wc-deposits-hybrid-settings.php';
+            }
             return $settings_pages;
         });
     }
