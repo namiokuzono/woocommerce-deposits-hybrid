@@ -391,7 +391,5 @@ class WC_Deposits_Hybrid_Product_Manager {
     }
 }
 
-// Initialize the product manager and add hooks
-$hybrid_manager = new WC_Deposits_Hybrid_Product_Manager();
-$hybrid_manager->add_hooks();
-$hybrid_manager->add_frontend_hooks(); 
+// Initialize the product manager
+new WC_Deposits_Hybrid_Product_Manager(); 
