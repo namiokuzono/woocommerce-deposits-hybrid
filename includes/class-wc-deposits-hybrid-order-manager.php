@@ -28,6 +28,10 @@ class WC_Deposits_Hybrid_Order_Manager {
 
         // Handle NRD orders
         add_action( 'woocommerce_order_status_changed', array( $this, 'handle_nrd_order_status' ), 10, 4 );
+
+        // Set up deposit/payment plan based on hybrid selection at order creation
+        add_action( 'woocommerce_checkout_create_order_line_item', array( $this, 'add_hybrid_meta_to_order_item' ), 10, 4 );
+        add_action( 'woocommerce_checkout_order_processed', array( $this, 'set_hybrid_order_payment_type' ), 20, 3 );
     }
 
     /**
@@ -162,6 +166,56 @@ class WC_Deposits_Hybrid_Order_Manager {
                     $order->add_order_note( __( 'Note: The initial deposit is non-refundable.', 'wc-deposits-hybrid' ) );
                 }
             }
+        }
+    }
+
+    /**
+     * Set up deposit/payment plan based on hybrid selection at order creation
+     */
+    public function set_hybrid_order_payment_type( $order_id, $posted_data, $order ) {
+        foreach ( $order->get_items() as $item_id => $item ) {
+            $product = $item->get_product();
+            if ( ! $product ) continue;
+            $option = $item->get_meta( 'wc_deposits_hybrid_option', true );
+            $plan_id = $item->get_meta( 'wc_deposits_hybrid_plan_id', true );
+            if ( ! $option ) continue;
+
+            // Store on order for later reference
+            update_post_meta( $order_id, '_wc_deposits_hybrid_order', 'yes' );
+            update_post_meta( $order_id, '_wc_deposits_hybrid_option', $option );
+            if ( $plan_id ) {
+                update_post_meta( $order_id, '_wc_deposits_hybrid_plan', $plan_id );
+            }
+
+            // Handle logic
+            switch ( $option ) {
+                case 'full':
+                    // No deposit, pay in full
+                    update_post_meta( $order_id, '_wc_deposit_full_payment', 'yes' );
+                    break;
+                case 'nrd':
+                    // Set as deposit, no payment plan
+                    update_post_meta( $order_id, '_wc_deposit_nrd', 'yes' );
+                    break;
+                case 'plan':
+                    // Set as deposit with payment plan
+                    if ( $plan_id ) {
+                        update_post_meta( $order_id, '_wc_deposit_plan', $plan_id );
+                    }
+                    break;
+            }
+        }
+    }
+
+    /**
+     * Add hybrid meta to order item
+     */
+    public function add_hybrid_meta_to_order_item( $item, $cart_item_key, $values, $order ) {
+        if ( isset( $values['wc_deposits_hybrid_option'] ) ) {
+            $item->add_meta_data( 'wc_deposits_hybrid_option', $values['wc_deposits_hybrid_option'], true );
+        }
+        if ( isset( $values['wc_deposits_hybrid_plan_id'] ) ) {
+            $item->add_meta_data( 'wc_deposits_hybrid_plan_id', $values['wc_deposits_hybrid_plan_id'], true );
         }
     }
 }
