@@ -46,7 +46,7 @@ if ( ! $has_nrd && ! $has_plans ) return;
 <script>
 jQuery(function($){
     var $options = $('.wc-deposits-hybrid-options');
-    $options.find('input[type=radio][name=wc_deposits_hybrid_option]').on('change', function(){
+    $options.on('change', 'input[type=radio][name=wc_deposits_hybrid_option]', function(){
         if($(this).val() === 'plan') {
             $options.find('.wc-deposits-hybrid-plan-select').show();
         } else {

@@ -353,6 +353,7 @@ class WC_Deposits_Hybrid_Product_Manager {
         add_filter( 'woocommerce_get_item_data', array( $this, 'get_item_data' ), 10, 2 );
         add_filter( 'wc_deposits_deposit_type', array( $this, 'filter_cart_deposit_type' ), 10, 3 );
         add_filter( 'wc_deposits_deposit_amount', array( $this, 'filter_cart_deposit_amount' ), 10, 3 );
+        add_filter( 'woocommerce_order_item_hidden_meta', array( $this, 'filter_order_item_hidden_meta' ), 10, 2 );
     }
 
     /**
@@ -446,6 +447,17 @@ class WC_Deposits_Hybrid_Product_Manager {
             }
         }
         return $amount;
+    }
+
+    /**
+     * Hide internal hybrid meta from order details/emails
+     */
+    public function filter_order_item_hidden_meta( $hidden, $meta_key ) {
+        $internal = array('wc_deposits_hybrid_option', 'wc_deposits_hybrid_plan_id');
+        if ( in_array( $meta_key, $internal, true ) ) {
+            return true;
+        }
+        return $hidden;
     }
 }
 
