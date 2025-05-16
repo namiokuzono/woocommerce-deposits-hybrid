@@ -97,16 +97,21 @@ class WC_Deposits_Hybrid_Product_Manager {
                 )
             );
 
-            echo '<div class="show_if_allow_plans">';
-            woocommerce_wp_multi_checkbox(
-                array(
-                    'id'          => '_wc_deposit_hybrid_plans',
-                    'label'       => __( 'Available Payment Plans', 'wc-deposits-hybrid' ),
-                    'description' => __( 'Select which payment plans are available for this product', 'wc-deposits-hybrid' ),
-                    'options'     => $payment_plans,
-                )
-            );
-            echo '</div>';
+            // Multi-select dropdown for payment plans
+            $selected_plans = get_post_meta( $post->ID, '_wc_deposit_hybrid_plans', true );
+            if ( ! is_array( $selected_plans ) ) {
+                $selected_plans = array();
+            }
+            echo '<p class="form-field show_if_allow_plans">';
+            echo '<label for="_wc_deposit_hybrid_plans">' . __( 'Available Payment Plans', 'wc-deposits-hybrid' ) . '</label>';
+            echo '<select id="_wc_deposit_hybrid_plans" name="_wc_deposit_hybrid_plans[]" multiple="multiple" style="min-width:200px;">';
+            foreach ( $payment_plans as $plan_id => $plan_name ) {
+                $selected = in_array( $plan_id, $selected_plans ) ? 'selected' : '';
+                echo '<option value="' . esc_attr( $plan_id ) . '" ' . $selected . '>' . esc_html( $plan_name ) . '</option>';
+            }
+            echo '</select>';
+            echo '<span class="description">' . __( 'Select which payment plans are available for this product', 'wc-deposits-hybrid' ) . '</span>';
+            echo '</p>';
         } else {
             echo '<p class="form-field">';
             echo '<label>' . __( 'Payment Plans', 'wc-deposits-hybrid' ) . '</label>';
