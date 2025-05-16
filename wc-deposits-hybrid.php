@@ -101,6 +101,7 @@ class WC_Deposits_Hybrid {
         // Include core classes
         require_once WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'includes/class-wc-deposits-hybrid-product-manager.php';
         require_once WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'includes/class-wc-deposits-hybrid-order-manager.php';
+        require_once WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'includes/class-wc-deposits-hybrid-settings.php';
     }
 
     /**
