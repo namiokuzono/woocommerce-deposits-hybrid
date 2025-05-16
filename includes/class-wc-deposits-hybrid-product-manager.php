@@ -72,6 +72,10 @@ class WC_Deposits_Hybrid_Product_Manager {
         add_filter( 'wc_deposits_enabled_for_cart_item', array( $this, 'deposits_enabled_for_cart_item' ), 10, 3 );
         add_filter( 'woocommerce_get_item_data', array( $this, 'get_item_data' ), 10, 2 );
 
+        // Add AJAX handlers
+        add_action( 'wp_ajax_wc_deposits_hybrid_update_cart_item', array( $this, 'ajax_update_cart_item' ) );
+        add_action( 'wp_ajax_nopriv_wc_deposits_hybrid_update_cart_item', array( $this, 'ajax_update_cart_item' ) );
+
         wc_deposits_hybrid_log( 'Product Manager hooks registered' );
     }
 
@@ -592,6 +596,41 @@ class WC_Deposits_Hybrid_Product_Manager {
             '',
             WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'templates/'
         );
+    }
+
+    /**
+     * AJAX handler for cart item updates
+     */
+    public function ajax_update_cart_item() {
+        check_ajax_referer( 'wc-deposits-hybrid', 'nonce' );
+
+        $option = isset( $_POST['option'] ) ? sanitize_text_field( wp_unslash( $_POST['option'] ) ) : '';
+        $plan_id = isset( $_POST['plan_id'] ) ? absint( $_POST['plan_id'] ) : 0;
+
+        if ( ! $option ) {
+            wp_send_json_error( 'Invalid option' );
+            return;
+        }
+
+        // Get the cart item key
+        $cart_item_key = WC()->cart->get_cart_item_key( get_the_ID(), 0 );
+        if ( ! $cart_item_key ) {
+            wp_send_json_error( 'Cart item not found' );
+            return;
+        }
+
+        // Update the cart item data
+        $cart_item = WC()->cart->get_cart_item( $cart_item_key );
+        if ( $cart_item ) {
+            $cart_item['hybrid_deposit_type'] = $option;
+            if ( $option === 'plan' && $plan_id > 0 ) {
+                $cart_item['hybrid_plan_id'] = $plan_id;
+            }
+            WC()->cart->cart_contents[ $cart_item_key ] = $cart_item;
+            WC()->cart->set_session();
+        }
+
+        wp_send_json_success();
     }
 }
 

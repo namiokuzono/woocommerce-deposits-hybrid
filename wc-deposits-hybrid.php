@@ -81,6 +81,13 @@ class WC_Deposits_Hybrid {
 
         // Add admin notices
         add_action( 'admin_notices', array( $this, 'admin_notices' ) );
+
+        // Register frontend assets
+        add_action( 'wp_enqueue_scripts', array( $this, 'register_frontend_assets' ) );
+
+        // Add template loader
+        add_filter( 'woocommerce_locate_template', array( $this, 'locate_template' ), 10, 3 );
+        add_filter( 'woocommerce_locate_core_template', array( $this, 'locate_template' ), 10, 3 );
     }
 
     /**
@@ -188,6 +195,52 @@ class WC_Deposits_Hybrid {
             <p><?php _e( 'WooCommerce Deposits Hybrid requires WooCommerce Deposits to be installed and active.', 'wc-deposits-hybrid' ); ?></p>
         </div>
         <?php
+    }
+
+    /**
+     * Register frontend assets
+     */
+    public function register_frontend_assets() {
+        if ( is_product() ) {
+            wp_enqueue_style(
+                'wc-deposits-hybrid',
+                WC_DEPOSITS_HYBRID_PLUGIN_URL . 'assets/css/frontend.css',
+                array(),
+                WC_DEPOSITS_HYBRID_VERSION
+            );
+
+            wp_enqueue_script(
+                'wc-deposits-hybrid',
+                WC_DEPOSITS_HYBRID_PLUGIN_URL . 'assets/js/frontend.js',
+                array( 'jquery' ),
+                WC_DEPOSITS_HYBRID_VERSION,
+                true
+            );
+
+            wp_localize_script(
+                'wc-deposits-hybrid',
+                'wc_deposits_hybrid_params',
+                array(
+                    'ajax_url' => admin_url( 'admin-ajax.php' ),
+                    'nonce'    => wp_create_nonce( 'wc-deposits-hybrid' ),
+                )
+            );
+        }
+    }
+
+    /**
+     * Locate template
+     *
+     * @param string $template      Template path
+     * @param string $template_name Template name
+     * @param string $template_path Template path
+     * @return string
+     */
+    public function locate_template( $template, $template_name, $template_path ) {
+        if ( strpos( $template_name, 'hybrid-deposit-options.php' ) !== false ) {
+            $template = WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'templates/single-product/hybrid-deposit-options.php';
+        }
+        return $template;
     }
 }
 
