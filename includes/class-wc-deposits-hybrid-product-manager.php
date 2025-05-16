@@ -66,9 +66,6 @@ class WC_Deposits_Hybrid_Product_Manager {
         add_filter( 'woocommerce_add_cart_item_data', array( $this, 'add_cart_item_data' ), 10, 3 );
         add_filter( 'wc_deposits_enabled_for_cart_item', array( $this, 'deposits_enabled_for_cart_item' ), 10, 3 );
         add_filter( 'woocommerce_get_item_data', array( $this, 'get_item_data' ), 10, 2 );
-
-        // Add debug settings to WooCommerce settings
-        add_filter( 'woocommerce_get_settings_pages', array( $this, 'add_debug_settings_page' ) );
     }
 
     /**
@@ -77,17 +74,10 @@ class WC_Deposits_Hybrid_Product_Manager {
     private function init_debug_settings() {
         $this->debug_mode = get_option( 'wc_deposits_hybrid_debug_mode', 'no' ) === 'yes';
         $this->debug_log_file = WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'debug.log';
-    }
-
-    /**
-     * Add debug settings page
-     *
-     * @param array $settings_pages
-     * @return array
-     */
-    public function add_debug_settings_page( $settings_pages ) {
-        $settings_pages[] = include WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'includes/class-wc-deposits-hybrid-settings.php';
-        return $settings_pages;
+        
+        if ( $this->debug_mode ) {
+            $this->log_debug( 'Product Manager initialized', 'info' );
+        }
     }
 
     /**
@@ -472,146 +462,69 @@ class WC_Deposits_Hybrid_Product_Manager {
         return $item_data;
     }
 
+    /**
+     * Enqueue frontend assets
+     */
     public function enqueue_frontend_assets() {
         if ( is_product() ) {
-            wp_enqueue_style( 'wc-deposits-hybrid-frontend', WC_DEPOSITS_HYBRID_PLUGIN_URL . 'assets/css/frontend-hybrid.css', array(), WC_DEPOSITS_HYBRID_VERSION );
-            wp_enqueue_script( 'wc-deposits-hybrid-frontend', WC_DEPOSITS_HYBRID_PLUGIN_URL . 'assets/js/frontend-hybrid.js', array('jquery'), WC_DEPOSITS_HYBRID_VERSION, true );
+            wp_enqueue_style(
+                'wc-deposits-hybrid',
+                WC_DEPOSITS_HYBRID_PLUGIN_URL . 'assets/css/frontend.css',
+                array(),
+                WC_DEPOSITS_HYBRID_VERSION
+            );
+
+            wp_enqueue_script(
+                'wc-deposits-hybrid',
+                WC_DEPOSITS_HYBRID_PLUGIN_URL . 'assets/js/frontend.js',
+                array( 'jquery' ),
+                WC_DEPOSITS_HYBRID_VERSION,
+                true
+            );
+
+            wp_localize_script(
+                'wc-deposits-hybrid',
+                'wc_deposits_hybrid_params',
+                array(
+                    'ajax_url' => admin_url( 'admin-ajax.php' ),
+                    'nonce'    => wp_create_nonce( 'wc-deposits-hybrid' ),
+                )
+            );
         }
     }
 
+    /**
+     * Show hybrid deposit options
+     */
     public function show_hybrid_deposit_options() {
         global $product;
 
-        if ( ! $product || 'hybrid' !== WC_Deposits_Product_Manager::get_deposit_type( $product->get_id() ) ) {
+        if ( ! $product || ! $product->is_type( 'simple' ) ) {
+            return;
+        }
+
+        $deposit_type = get_post_meta( $product->get_id(), '_wc_deposit_type', true );
+        if ( 'hybrid' !== $deposit_type ) {
             return;
         }
 
         $initial_percent = get_post_meta( $product->get_id(), '_wc_deposit_hybrid_initial_percent', true );
         $is_nrd = get_post_meta( $product->get_id(), '_wc_deposit_hybrid_nrd', true );
         $allow_plans = get_post_meta( $product->get_id(), '_wc_deposit_hybrid_allow_plans', true );
-        $available_plans = get_post_meta( $product->get_id(), '_wc_deposit_hybrid_plans', true );
+        $selected_plans = get_post_meta( $product->get_id(), '_wc_deposit_hybrid_plans', true );
 
-        if ( ! $initial_percent ) {
-            return;
+        if ( ! is_array( $selected_plans ) ) {
+            $selected_plans = array();
         }
 
-        $price = $product->get_price();
-        $deposit_amount = ( $price * $initial_percent ) / 100;
-        $remaining_amount = $price - $deposit_amount;
+        // Get payment plans
+        $payment_plans = array();
+        if ( class_exists( 'WC_Deposits_Plans_Manager' ) && 'yes' === $allow_plans ) {
+            $payment_plans = WC_Deposits_Plans_Manager::get_plan_ids();
+        }
 
-        ?>
-        <div class="wc-deposits-hybrid-options">
-            <h4><?php esc_html_e( 'Payment Options', 'wc-deposits-hybrid' ); ?></h4>
-            
-            <div class="payment-option">
-                <input type="radio" name="wc_deposits_hybrid_option" id="full_payment" value="full" checked>
-                <label for="full_payment">
-                    <strong><?php esc_html_e( 'Full Payment', 'wc-deposits-hybrid' ); ?></strong>
-                    <span class="price"><?php echo wc_price( $price ); ?></span>
-                    <span class="description"><?php esc_html_e( 'Pay the full amount now', 'wc-deposits-hybrid' ); ?></span>
-                </label>
-            </div>
-
-            <div class="payment-option">
-                <input type="radio" name="wc_deposits_hybrid_option" id="nrd_payment" value="nrd">
-                <label for="nrd_payment">
-                    <strong><?php esc_html_e( 'Non-Refundable Deposit', 'wc-deposits-hybrid' ); ?></strong>
-                    <span class="price"><?php echo wc_price( $deposit_amount ); ?></span>
-                    <span class="description">
-                        <?php 
-                        printf(
-                            esc_html__( 'Pay %s now (%s%%) and the remaining %s later', 'wc-deposits-hybrid' ),
-                            wc_price( $deposit_amount ),
-                            $initial_percent,
-                            wc_price( $remaining_amount )
-                        );
-                        ?>
-                    </span>
-                </label>
-            </div>
-
-            <?php if ( 'yes' === $allow_plans && ! empty( $available_plans ) ) : ?>
-                <div class="payment-option">
-                    <input type="radio" name="wc_deposits_hybrid_option" id="plan_payment" value="plan">
-                    <label for="plan_payment">
-                        <strong><?php esc_html_e( 'Payment Plan', 'wc-deposits-hybrid' ); ?></strong>
-                        <span class="price"><?php echo wc_price( $deposit_amount ); ?></span>
-                        <span class="description">
-                            <?php 
-                            printf(
-                                esc_html__( 'Pay %s now (%s%%) and the remaining %s in installments', 'wc-deposits-hybrid' ),
-                                wc_price( $deposit_amount ),
-                                $initial_percent,
-                                wc_price( $remaining_amount )
-                            );
-                            ?>
-                        </span>
-                    </label>
-
-                    <div class="payment-plan-options" style="display: none;">
-                        <select name="wc_deposits_hybrid_plan_id" id="wc_deposits_hybrid_plan_id">
-                            <?php
-                            foreach ( $available_plans as $plan_id ) {
-                                $plan = WC_Deposits_Plans_Manager::get_plan( $plan_id );
-                                if ( $plan ) {
-                                    echo '<option value="' . esc_attr( $plan_id ) . '">' . esc_html( $plan->get_name() ) . '</option>';
-                                }
-                            }
-                            ?>
-                        </select>
-                    </div>
-                </div>
-            <?php endif; ?>
-        </div>
-
-        <style>
-            .wc-deposits-hybrid-options {
-                margin: 20px 0;
-                padding: 15px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-            }
-            .payment-option {
-                margin: 10px 0;
-                padding: 10px;
-                border: 1px solid #eee;
-                border-radius: 4px;
-            }
-            .payment-option label {
-                display: block;
-                cursor: pointer;
-            }
-            .payment-option .price {
-                display: block;
-                font-size: 1.2em;
-                color: #0073aa;
-                margin: 5px 0;
-            }
-            .payment-option .description {
-                display: block;
-                color: #666;
-                font-size: 0.9em;
-            }
-            .payment-plan-options {
-                margin-top: 10px;
-                padding: 10px;
-                background: #f9f9f9;
-                border-radius: 4px;
-            }
-        </style>
-
-        <script type="text/javascript">
-            jQuery(document).ready(function($) {
-                $('input[name="wc_deposits_hybrid_option"]').on('change', function() {
-                    if ($(this).val() === 'plan') {
-                        $('.payment-plan-options').show();
-                    } else {
-                        $('.payment-plan-options').hide();
-                    }
-                });
-            });
-        </script>
-        <?php
+        // Include template
+        include WC_DEPOSITS_HYBRID_PLUGIN_DIR . 'templates/frontend/deposit-options.php';
     }
 }
 
