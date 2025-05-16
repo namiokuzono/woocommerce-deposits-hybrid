@@ -20,8 +20,9 @@ class WC_Deposits_Hybrid_Product_Manager {
         // Add hybrid deposit type
         add_filter( 'wc_deposits_deposit_types', array( $this, 'add_hybrid_deposit_type' ) );
         
-        // Add product options
-        add_action( 'woocommerce_product_options_general_product_data', array( $this, 'add_hybrid_options' ) );
+        // Add product data tab
+        add_filter( 'woocommerce_product_data_tabs', array( $this, 'add_hybrid_product_data_tab' ) );
+        add_action( 'woocommerce_product_data_panels', array( $this, 'add_hybrid_product_data_panel' ) );
         
         // Save product options
         add_action( 'woocommerce_process_product_meta', array( $this, 'save_hybrid_options' ) );
@@ -63,12 +64,28 @@ class WC_Deposits_Hybrid_Product_Manager {
     }
 
     /**
-     * Add hybrid options to product data panel
+     * Add Hybrid Deposits tab to product data tabs
+     *
+     * @param array $tabs Product data tabs
+     * @return array
      */
-    public function add_hybrid_options() {
+    public function add_hybrid_product_data_tab( $tabs ) {
+        $tabs['hybrid_deposits'] = array(
+            'label'    => __( 'Hybrid Deposits', 'wc-deposits-hybrid' ),
+            'target'   => 'hybrid_deposits_product_data',
+            'class'    => array( 'show_if_simple', 'show_if_variable' ),
+            'priority' => 80,
+        );
+        return $tabs;
+    }
+
+    /**
+     * Add Hybrid Deposits panel content
+     */
+    public function add_hybrid_product_data_panel() {
         global $post;
 
-        echo '<div class="options_group show_if_hybrid">';
+        echo '<div id="hybrid_deposits_product_data" class="panel woocommerce_options_panel">';
         
         // Initial deposit percentage
         woocommerce_wp_text_input(
@@ -82,6 +99,7 @@ class WC_Deposits_Hybrid_Product_Manager {
                     'min'  => '0',
                     'max'  => '100',
                 ),
+                'value'       => get_post_meta( $post->ID, '_wc_deposit_hybrid_initial_percent', true ),
             )
         );
 
@@ -91,6 +109,7 @@ class WC_Deposits_Hybrid_Product_Manager {
                 'id'          => '_wc_deposit_hybrid_nrd',
                 'label'       => __( 'Non-Refundable Deposit', 'wc-deposits-hybrid' ),
                 'description' => __( 'Make the initial deposit non-refundable', 'wc-deposits-hybrid' ),
+                'value'       => get_post_meta( $post->ID, '_wc_deposit_hybrid_nrd', true ),
             )
         );
 
@@ -106,6 +125,7 @@ class WC_Deposits_Hybrid_Product_Manager {
                     'id'          => '_wc_deposit_hybrid_allow_plans',
                     'label'       => __( 'Allow Payment Plans', 'wc-deposits-hybrid' ),
                     'description' => __( 'Allow customers to choose a payment plan for the remaining balance', 'wc-deposits-hybrid' ),
+                    'value'       => get_post_meta( $post->ID, '_wc_deposit_hybrid_allow_plans', true ),
                 )
             );
 
@@ -132,12 +152,8 @@ class WC_Deposits_Hybrid_Product_Manager {
         }
 
         echo '</div>';
-    }
 
-    /**
-     * Add JavaScript to handle payment plan display
-     */
-    public function add_payment_plan_script() {
+        // Add JavaScript for payment plan display
         ?>
         <script type="text/javascript">
             jQuery(document).ready(function($) {
@@ -153,15 +169,6 @@ class WC_Deposits_Hybrid_Product_Manager {
                 // Handle checkbox change
                 $('#_wc_deposit_hybrid_allow_plans').on('change', function() {
                     togglePaymentPlanOptions();
-                });
-
-                // Handle deposit type change
-                $('#_wc_deposit_type').on('change', function() {
-                    var isHybrid = $(this).val() === 'hybrid';
-                    $('.show_if_hybrid').toggle(isHybrid);
-                    if (isHybrid) {
-                        togglePaymentPlanOptions();
-                    }
                 });
             });
         </script>
